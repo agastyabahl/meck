@@ -230,7 +230,7 @@ init([Mod, Options]) ->
     History = if NoHistory -> undefined; true -> [] end,
     CanExpect = resolve_can_expect(Mod, Exports, Options),
     Expects = init_expects(Exports, Options),
-    backup_original_breakpoints(Mod),
+    % backup_original_breakpoints(Mod),
     process_flag(trap_exit, true),
     try
         Forms = meck_code_gen:to_forms(Mod, Expects),
