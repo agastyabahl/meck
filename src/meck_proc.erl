@@ -230,6 +230,7 @@ init([Mod, Options]) ->
     History = if NoHistory -> undefined; true -> [] end,
     CanExpect = resolve_can_expect(Mod, Exports, Options),
     Expects = init_expects(Exports, Options),
+    backup_original_breakpoints(Mod),
     process_flag(trap_exit, true),
     try
         Forms = meck_code_gen:to_forms(Mod, Expects),
@@ -362,7 +363,8 @@ terminate(_Reason, #state{mod = Mod, original = OriginalState,
             ok;
         _ ->
             ok
-    end.
+    end,
+    restore_original_breakpoints(Mod).
 
 %% @hidden
 code_change(_OldVsn, S, _Extra) -> {ok, S}.
@@ -441,6 +443,10 @@ backup_original(Mod, Passthrough, NoPassCover, EnableOnLoad) ->
                 false -> {Cover, no_binary}
             end
     end.
+
+-spec backup_original_breakpoints(module()) -> ok.
+backup_original_breakpoints(Mod) ->
+    handle_original_breakpoints(Mod, backup).
 
 -spec get_cover_state(Mod::atom()) ->
         {File::string(), Data::string(), CompileOptions::[any()]} | false.
@@ -634,6 +640,28 @@ restore_original(Mod, {{File, OriginalCover, Options}, _Bin}, WasSticky, BackupC
     ok = file:delete(OriginalCover),
     ok.
 
+-spec restore_original_breakpoints(module()) -> ok.
+restore_original_breakpoints(Mod) ->
+    handle_original_breakpoints(Mod, restore).
+
+-spec handle_original_breakpoints(module(), Action :: atom()) -> ok.
+handle_original_breakpoints(Mod, Action) ->
+    EdbServerModule = edb_server,
+    case code:is_loaded(EdbServerModule) of
+        false -> ok;
+        _ ->
+            try
+                case Action of
+                    backup ->
+                        EdbServerModule:add_module_substitute(Mod, meck_util:original_name(Mod), [{meck_code_gen, eval, 5}]);
+                    restore ->
+                        EdbServerModule:remove_module_substitute(meck_util:original_name(Mod))
+                end
+            catch
+                _:_ -> ok
+            end
+    end.
+
 %% @doc Export the cover data for `<name>_meck_original' and modify
 %% the data so it can be imported under `<name>'.
 export_original_cover(Mod, {_, Bin}) when is_binary(Bin) ->
@@ -662,7 +690,7 @@ cleanup(Mod) ->
     code:purge(meck_util:original_name(Mod)),
     Res = code:delete(meck_util:original_name(Mod)),
 
-    % `cover:export` might still export the meck generated module, 
+    % `cover:export` might still export the meck generated module,
     % make sure that does not happen.
     _ = cover:reset(meck_util:original_name(Mod)),
 

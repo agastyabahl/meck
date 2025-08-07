@@ -64,7 +64,7 @@ beam_file(Module) ->
     end.
 
 -spec compile_and_load_forms(erlang_form()) -> binary().
-compile_and_load_forms(AbsCode) -> compile_and_load_forms(AbsCode, []).
+compile_and_load_forms(AbsCode) -> compile_and_load_forms(AbsCode, [beam_debug_info, debug_info]).
 
 -spec compile_and_load_forms(erlang_form(), compile_options()) -> binary().
 compile_and_load_forms(AbsCode, Opts) ->
